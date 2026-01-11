@@ -71,8 +71,9 @@ export function useGameSocket(roomCode: string, currentPlayerId?: number) {
 
     socket.on("connect", () => {
       setIsConnected(true);
-      // Join the specific room channel
-      socket.emit("join_room", { code: roomCode, nickname: localStorage.getItem("nickname") });
+      const savedNickname = localStorage.getItem("nickname");
+      console.log("Connected to WS, joining room:", roomCode, "as:", savedNickname);
+      socket.emit(ws.events.JOIN_ROOM, { code: roomCode, nickname: savedNickname });
     });
 
     socket.on("disconnect", () => {

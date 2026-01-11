@@ -85,15 +85,28 @@ export async function registerRoutes(
 
     socket.on(ws.events.JOIN_ROOM, async (data: any) => {
       const { code, nickname } = data;
-      console.log(`Player ${nickname} joining room ${code}`);
+      console.log(`[WS] Player ${nickname} joining room ${code}`);
       const room = await storage.getRoomByCode(code);
       if (!room) {
         socket.emit("error", { message: "Room not found" });
         return;
       }
 
-      const existingPlayers = await storage.getPlayersInRoom(room.id);
-      const isHost = existingPlayers.length === 0;
+      // Check if player already exists for this socket
+      const existingPlayer = await storage.getPlayerBySocket(socket.id);
+      if (existingPlayer) {
+        console.log(`[WS] Player ${nickname} already exists for socket ${socket.id}`);
+        const allPlayers = await storage.getPlayersInRoom(room.id);
+        socket.join(code);
+        io.to(code).emit(ws.events.PLAYER_JOINED, {
+          player: existingPlayer,
+          players: allPlayers
+        });
+        return;
+      }
+
+      const existingPlayersInRoom = await storage.getPlayersInRoom(room.id);
+      const isHost = existingPlayersInRoom.length === 0;
 
       const player = await storage.createPlayer({
         roomId: room.id,
@@ -105,11 +118,12 @@ export async function registerRoutes(
 
       socket.join(code);
       
-      console.log(`Player ${player.nickname} joined room ${code} (isHost: ${isHost})`);
+      console.log(`[WS] Player ${player.nickname} joined room ${code} (isHost: ${isHost})`);
+      const allPlayersAfterJoin = await storage.getPlayersInRoom(room.id);
 
       io.to(code).emit(ws.events.PLAYER_JOINED, {
         player,
-        players: [...existingPlayers, player]
+        players: allPlayersAfterJoin
       });
     });
 
