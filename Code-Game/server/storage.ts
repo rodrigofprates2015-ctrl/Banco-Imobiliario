@@ -50,7 +50,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPlayersInRoom(roomId: number): Promise<Player[]> {
-    return db.select().from(players).where(eq(players.roomId, roomId));
+    return db.select().from(players).where(eq(players.roomId, roomId)).orderBy(players.id);
   }
 
   async getPlayerBySocket(socketId: string): Promise<Player | undefined> {

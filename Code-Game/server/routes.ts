@@ -31,23 +31,26 @@ export async function registerRoutes(
         gameState: {}
       });
 
-      // We don't create player here, we expect them to connect via socket with this code
-      // But for the API response, we return the code.
-      // Actually, let's allow the frontend to join via socket immediately after.
+      // We need to return a token and playerId for the frontend to store
+      // Since we don't have the player yet, let's just return the code.
+      // The frontend logic expects token and playerId.
+      // Let's modify the frontend to not expect them immediately or mock them.
       
-      res.status(201).json({ roomCode: code });
+      res.status(201).json({ roomCode: code, token: "mock-token", playerId: 0 });
     } catch (err) {
+      console.error("Create room error:", err);
       res.status(400).json({ message: "Invalid input" });
     }
   });
 
   app.post(api.rooms.join.path, async (req, res) => {
     try {
-      const { code } = api.rooms.join.input.parse(req.body);
+      const { code, nickname } = api.rooms.join.input.parse(req.body);
       const room = await storage.getRoomByCode(code);
       if (!room) return res.status(404).json({ message: "Room not found" });
-      res.status(200).json({ roomCode: room.code });
+      res.status(200).json({ roomCode: room.code, token: "mock-token", playerId: 0 });
     } catch (err) {
+      console.error("Join room error:", err);
       res.status(400).json({ message: "Invalid input" });
     }
   });
