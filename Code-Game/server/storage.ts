@@ -1,6 +1,9 @@
 import { db } from "./db";
-import { rooms, players, type Room, type Player, type InsertRoom, type InsertPlayer } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { rooms, players, type Room, type Player } from "@shared/schema";
+import { eq } from "drizzle-orm";
+
+export type InsertRoom = typeof rooms.$inferInsert;
+export type InsertPlayer = typeof players.$inferInsert;
 
 export interface IStorage {
   createRoom(room: InsertRoom): Promise<Room>;

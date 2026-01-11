@@ -27,7 +27,8 @@ export async function registerRoutes(
         city,
         code,
         hostId: "pending", // Will be updated when socket connects
-        status: "waiting"
+        status: "waiting",
+        gameState: {}
       });
 
       // We don't create player here, we expect them to connect via socket with this code
