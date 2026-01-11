@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Urban Poly - Jogo Funcional</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap');
+        
+        body { font-family: 'Outfit', sans-serif; overflow-x: hidden; }
+
+        .board-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            grid-template-rows: repeat(6, 1fr);
+            gap: 4px;
+            aspect-ratio: 1/1;
+            background-color: #1e293b;
+            padding: 8px;
+            border-radius: 12px;
+            position: relative;
+        }
+
+        .property-cell {
+            background-color: #f8fafc;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            font-size: 0.6rem;
+            text-align: center;
+            position: relative;
+            border: 1px solid transparent;
+        }
+
+        .active-cell { border: 2px solid #3b82f6; }
+
+        .center-board {
+            grid-column: 2 / 6;
+            grid-row: 2 / 6;
+            background: radial-gradient(circle, #1e40af 0%, #0f172a 100%);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .player-token {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid white;
+            position: absolute;
+            bottom: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 50;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        .dice-box {
+            background: white;
+            color: #1e293b;
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #cbd5e1;
+            transition: all 0.1s;
+        }
+        .dice-box:active { transform: translateY(4px); box-shadow: 0 0 transparent; }
+
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            padding: 20px;
+        }
+
+        .card-luck {
+            background: white;
+            color: #1e293b;
+            padding: 30px;
+            border-radius: 20px;
+            max-width: 300px;
+            text-align: center;
+            border-top: 10px solid #ef4444;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 min-h-screen text-slate-200 p-4">
+    <div class="max-w-3xl mx-auto">
+        <header class="mb-6 text-center">
+            <h1 class="text-3xl font-extrabold tracking-tight text-white uppercase italic">Urban<span class="text-blue-500">Poly</span></h1>
+        </header>
+
+        <!-- Setup de Cidade -->
+        <div id="setupArea" class="bg-slate-800 p-6 rounded-3xl shadow-2xl border border-slate-700 mb-6">
+            <div class="flex flex-col sm:flex-row gap-3">
+                <input type="text" id="cityInput" placeholder="Sua cidade (ex: Poá, SP)" 
+                       class="flex-1 bg-slate-700 border-none p-4 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="generateGame()" id="btnGenerate"
+                        class="bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-xl font-bold transition-all">
+                    Iniciar Partida
+                </button>
+            </div>
+        </div>
+
+        <!-- Interface de Jogo -->
+        <div id="gameUI" class="hidden grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in duration-500">
+            <!-- Coluna do Tabuleiro -->
+            <div class="md:col-span-2">
+                <div class="board-grid" id="board"></div>
+            </div>
+
+            <!-- Coluna de Controles -->
+            <div class="bg-slate-800 p-6 rounded-3xl border border-slate-700 flex flex-col gap-6">
+                <div class="text-center">
+                    <h2 id="currentCityName" class="text-xl font-bold text-blue-400">Cidade</h2>
+                    <p class="text-xs text-slate-400 uppercase tracking-widest">Status do Jogador</p>
+                </div>
+
+                <div class="bg-slate-700 p-4 rounded-2xl flex justify-between items-center">
+                    <div>
+                        <p class="text-[10px] uppercase text-slate-400">Saldo Atual</p>
+                        <p class="text-2xl font-black text-green-400">M$ <span id="playerMoney">1500</span></p>
+                    </div>
+                    <div class="w-10 h-10 rounded-full bg-blue-500 border-2 border-white shadow-lg"></div>
+                </div>
+
+                <div class="flex flex-col items-center gap-4 py-4">
+                    <div id="diceValue" class="text-4xl font-black mb-2 text-white">?</div>
+                    <button onclick="rollDice()" id="btnRoll" class="dice-box text-xl uppercase tracking-tighter w-full">
+                        Lançar Dados
+                    </button>
+                </div>
+
+                <div id="gameLog" class="text-[10px] h-32 overflow-y-auto bg-slate-900/50 p-3 rounded-xl border border-slate-700 text-slate-300">
+                    <div>Bem-vindo ao Urban Poly!</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modais -->
+    <div id="modalContainer" class="hidden modal">
+        <div id="cardContent" class="card-luck">
+            <h3 class="font-black text-xl mb-4 text-red-600">SORTE OU REVÉS</h3>
+            <p id="cardText" class="text-slate-700 mb-6 font-medium">Você foi multado por estacionar na calçada em Poá.</p>
+            <button onclick="closeModal()" class="bg-slate-900 text-white px-6 py-2 rounded-full font-bold w-full">OK</button>
+        </div>
+    </div>
+
+    <script>
+        const apiKey = ""; 
+        let gameData = {
+            pos: 0,
+            money: 1500,
+            locais: [],
+            city: ""
+        };
+
+        const categoryIcons = {
+            "alimentacao": "utensils", "saude": "plus-square", "compras": "shopping-bag",
+            "transporte": "car", "lazer": "palmtree", "rua": "map-pin", "prison": "lock", "go": "navigation"
+        };
+
+        async function generateGame() {
+            const city = document.getElementById('cityInput').value;
+            if (!city) return;
+
+            document.getElementById('btnGenerate').innerText = "Mapeando...";
+            document.getElementById('btnGenerate').disabled = true;
+
+            const prompt = `Gere 18 locais reais e populares da cidade de ${city}. 
+            Classifique em: 'rua', 'alimentacao', 'saude', 'compras', 'lazer' ou 'servicos'.
+            Retorne JSON: { "locais": [ { "nome": "Nome", "tipo": "rua|comercio", "categoria": "slug", "valor": num } ] }`;
+
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                });
+                const result = await response.json();
+                const text = result.candidates[0].content.parts[0].text;
+                const cleanJson = text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1);
+                const data = JSON.parse(cleanJson);
+                
+                // Adicionar Casas Especiais (Início e Prisão)
+                const finalLocais = [
+                    { nome: "INÍCIO", tipo: "especial", categoria: "go", valor: 0 },
+                    ...data.locais.slice(0, 9),
+                    { nome: "PRISÃO", tipo: "especial", categoria: "prison", valor: 0 },
+                    ...data.locais.slice(9, 18)
+                ];
+
+                gameData.locais = finalLocais;
+                gameData.city = city;
+                renderBoard();
+                
+                document.getElementById('setupArea').classList.add('hidden');
+                document.getElementById('gameUI').classList.remove('hidden');
+                document.getElementById('currentCityName').innerText = city;
+                log(`Partida iniciada em ${city}!`);
+            } catch (error) {
+                alert("Erro ao conectar com a rede. Tente novamente.");
+                document.getElementById('btnGenerate').innerText = "Iniciar Partida";
+                document.getElementById('btnGenerate').disabled = false;
+            }
+        }
+
+        function renderBoard() {
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+            
+            const center = document.createElement('div');
+            center.className = 'center-board';
+            center.innerHTML = `
+                <div class="text-3xl font-black mb-1">UP</div>
+                <div class="text-[8px] uppercase tracking-widest opacity-80 mb-2">Urban Engine</div>
+                <div id="lastAction" class="text-[10px] bg-white/10 p-2 rounded italic">Lance os dados para começar</div>
+            `;
+            board.appendChild(center);
+
+            // Peão do jogador
+            const token = document.createElement('div');
+            token.id = 'playerToken';
+            token.className = 'player-token bg-blue-500';
+            board.appendChild(token);
+
+            gameData.locais.forEach((local, index) => {
+                const cell = document.createElement('div');
+                cell.className = 'property-cell';
+                cell.id = `cell-${index}`;
+                
+                let colorClass = 'bg-blue-600'; 
+                if (local.tipo === 'comercio') {
+                    if (local.categoria === 'alimentacao') colorClass = 'bg-orange-500';
+                    else if (local.categoria === 'saude') colorClass = 'bg-red-500';
+                    else if (local.categoria === 'compras') colorClass = 'bg-emerald-500';
+                } else if (local.tipo === 'especial') {
+                    colorClass = 'bg-slate-900';
+                }
+
+                const iconName = categoryIcons[local.categoria] || 'store';
+                
+                cell.innerHTML = `
+                    <div class="h-2 w-full ${colorClass}"></div>
+                    <div class="icon-container py-1">
+                        <i data-lucide="${iconName}" class="w-3 h-3 text-slate-600"></i>
+                    </div>
+                    <div class="flex-1 flex items-center justify-center p-1 font-bold leading-tight text-slate-800 uppercase px-1 overflow-hidden">
+                        ${local.nome}
+                    </div>
+                    <div class="price-tag text-[7px] py-1">${local.valor > 0 ? 'M$ ' + local.valor : '---'}</div>
+                `;
+
+                // Layout 6x6
+                if (index < 6) { cell.style.gridColumn = index + 1; cell.style.gridRow = 1; }
+                else if (index < 11) { cell.style.gridColumn = 6; cell.style.gridRow = index - 4; }
+                else if (index < 16) { cell.style.gridColumn = 16 - index; cell.style.gridRow = 6; }
+                else { cell.style.gridColumn = 1; cell.style.gridRow = 21 - index; }
+                
+                board.appendChild(cell);
+            });
+
+            lucide.createIcons();
+            updateTokenPos();
+        }
+
+        function rollDice() {
+            const btn = document.getElementById('btnRoll');
+            btn.disabled = true;
+            
+            const dice = Math.floor(Math.random() * 6) + 1;
+            document.getElementById('diceValue').innerText = dice;
+            
+            movePlayer(dice);
+        }
+
+        function movePlayer(steps) {
+            let current = 0;
+            const interval = setInterval(() => {
+                gameData.pos = (gameData.pos + 1) % 20;
+                updateTokenPos();
+                current++;
+                if (current >= steps) {
+                    clearInterval(interval);
+                    handleLand();
+                    document.getElementById('btnRoll').disabled = false;
+                }
+            }, 300);
+        }
+
+        function updateTokenPos() {
+            const targetCell = document.getElementById(`cell-${gameData.pos}`);
+            const token = document.getElementById('playerToken');
+            
+            // Remover destaque de todas
+            document.querySelectorAll('.property-cell').forEach(c => c.classList.remove('active-cell'));
+            targetCell.classList.add('active-cell');
+
+            // Mover peão visualmente
+            const rect = targetCell.getBoundingClientRect();
+            const boardRect = document.getElementById('board').getBoundingClientRect();
+            
+            token.style.left = (targetCell.offsetLeft + (targetCell.offsetWidth / 2)) + 'px';
+            token.style.top = (targetCell.offsetTop + (targetCell.offsetHeight / 2)) + 'px';
+        }
+
+        function handleLand() {
+            const local = gameData.locais[gameData.pos];
+            log(`Você parou em: ${local.nome}`);
+            
+            if (local.categoria === 'prison') {
+                showLuckCard("VOCÊ FOI PRESO!", "O delegado de Poá te pegou em alta velocidade. Pague M$ 200 de fiança.", -200);
+            } else if (local.categoria === 'go') {
+                updateMoney(200);
+                log("Passou pelo início! Ganhou M$ 200.");
+            } else {
+                // Sorte ou Revés aleatório em propriedades
+                if (Math.random() > 0.7) {
+                    triggerRandomLuck();
+                } else if (local.valor > 0) {
+                    const tax = Math.floor(local.valor * 0.1);
+                    updateMoney(-tax);
+                    log(`Taxas locais em ${local.nome}: -M$ ${tax}`);
+                }
+            }
+        }
+
+        function triggerRandomLuck() {
+            const cards = [
+                { t: "IPVA Vencido!", d: "Esqueceu de pagar o imposto do carro. Pague M$ 150.", v: -150 },
+                { t: "Restituição de IR!", d: "A prefeitura te devolveu taxas cobradas indevidamente. Ganhe M$ 100.", v: 100 },
+                { t: "Dia de Sorte!", d: "Você achou uma nota de dinheiro na calçada. Ganhe M$ 50.", v: 50 },
+                { t: "Multa de Trânsito!", d: "Furou o farol vermelho no centro. Pague M$ 80.", v: -80 }
+            ];
+            const card = cards[Math.floor(Math.random() * cards.length)];
+            showLuckCard(card.t, card.d, card.v);
+        }
+
+        function showLuckCard(title, text, value) {
+            const modal = document.getElementById('modalContainer');
+            document.getElementById('cardText').innerText = text;
+            document.querySelector('#cardContent h3').innerText = title;
+            modal.classList.remove('hidden');
+            updateMoney(value);
+        }
+
+        function closeModal() {
+            document.getElementById('modalContainer').classList.add('hidden');
+        }
+
+        function updateMoney(amount) {
+            gameData.money += amount;
+            document.getElementById('playerMoney').innerText = gameData.money;
+            if (gameData.money <= 0) {
+                alert("GAME OVER! Você faliu na cidade.");
+                location.reload();
+            }
+        }
+
+        function log(msg) {
+            const logDiv = document.getElementById('gameLog');
+            const entry = document.createElement('div');
+            entry.innerText = `> ${msg}`;
+            logDiv.prepend(entry);
+            document.getElementById('lastAction').innerText = msg;
+        }
+
+        function updateTokenPos() {
+            const targetCell = document.getElementById(`cell-${gameData.pos}`);
+            const token = document.getElementById('playerToken');
+            
+            document.querySelectorAll('.property-cell').forEach(c => c.classList.remove('active-cell'));
+            targetCell.classList.add('active-cell');
+
+            // Ajuste fino para o peão centralizar na célula dentro do grid absoluto
+            token.style.left = `${targetCell.offsetLeft + (targetCell.offsetWidth / 2) - 10}px`;
+            token.style.top = `${targetCell.offsetTop + (targetCell.offsetHeight / 2) - 10}px`;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-body: 'DM Sans', sans-serif;
+  --font-display: 'Outfit', sans-serif;
+
+  /* Deep Cyber/Space Theme */
+  --background: 224 71% 4%;
+  --foreground: 210 40% 98%;
+
+  --card: 224 71% 6%;
+  --card-foreground: 210 40% 98%;
+
+  --popover: 224 71% 6%;
+  --popover-foreground: 210 40% 98%;
+
+  /* Neon Cyan Primary */
+  --primary: 190 100% 50%;
+  --primary-foreground: 224 71% 4%;
+
+  /* Hot Purple/Pink Secondary */
+  --secondary: 280 100% 60%;
+  --secondary-foreground: 210 40% 98%;
+
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%;
+
+  --accent: 190 100% 50%;
+  --accent-foreground: 224 71% 4%;
+
+  --destructive: 0 100% 60%;
+  --destructive-foreground: 210 40% 98%;
+
+  --border: 217 33% 20%;
+  --input: 217 33% 20%;
+  --ring: 190 100% 50%;
+
+  --radius: 0.75rem;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground antialiased selection:bg-primary/30 selection:text-primary-foreground;
+    font-family: var(--font-body);
+    background-image: 
+      radial-gradient(circle at 50% 0%, hsl(280 100% 60% / 0.15) 0%, transparent 50%),
+      radial-gradient(circle at 0% 100%, hsl(190 100% 50% / 0.1) 0%, transparent 50%);
+    background-attachment: fixed;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    @apply font-bold tracking-tight;
+  }
+}
+
+@layer utilities {
+  .text-shadow-glow {
+    text-shadow: 0 0 20px hsl(var(--primary) / 0.5);
+  }
+  .box-shadow-glow {
+    box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.3);
+  }
+  
+  /* Glassmorphism */
+  .glass {
+    @apply bg-card/60 backdrop-blur-md border border-white/10;
+  }
+  
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted rounded-full hover:bg-muted-foreground/50 transition-colors;
+  }
+}
+
+/* Property Group Colors */
+.group-brown { @apply bg-[#8B4513]; }
+.group-light_blue { @apply bg-[#87CEEB]; }
+.group-pink { @apply bg-[#FF69B4]; }
+.group-orange { @apply bg-[#FFA500]; }
+.group-red { @apply bg-[#FF0000]; }
+.group-yellow { @apply bg-[#FFD700]; }
+.group-green { @apply bg-[#008000]; }
+.group-blue { @apply bg-[#0000FF]; }

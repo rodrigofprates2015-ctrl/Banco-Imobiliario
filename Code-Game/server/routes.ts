@@ -1,0 +1,217 @@
+import type { Express } from "express";
+import { createServer, type Server } from "http";
+import { Server as SocketIOServer } from "socket.io";
+import { storage } from "./storage";
+import { api, ws } from "@shared/routes";
+import { z } from "zod";
+import { generateCityBoard } from "./lib/game-utils";
+
+export async function registerRoutes(
+  httpServer: Server,
+  app: Express
+): Promise<Server> {
+  const io = new SocketIOServer(httpServer, {
+    path: "/socket.io",
+    cors: {
+      origin: "*",
+    },
+  });
+
+  // API Routes
+  app.post(api.rooms.create.path, async (req, res) => {
+    try {
+      const { city, nickname } = api.rooms.create.input.parse(req.body);
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      
+      const room = await storage.createRoom({
+        city,
+        code,
+        hostId: "pending", // Will be updated when socket connects
+        status: "waiting"
+      });
+
+      // We don't create player here, we expect them to connect via socket with this code
+      // But for the API response, we return the code.
+      // Actually, let's allow the frontend to join via socket immediately after.
+      
+      res.status(201).json({ roomCode: code });
+    } catch (err) {
+      res.status(400).json({ message: "Invalid input" });
+    }
+  });
+
+  app.post(api.rooms.join.path, async (req, res) => {
+    try {
+      const { code } = api.rooms.join.input.parse(req.body);
+      const room = await storage.getRoomByCode(code);
+      if (!room) return res.status(404).json({ message: "Room not found" });
+      res.status(200).json({ roomCode: room.code });
+    } catch (err) {
+      res.status(400).json({ message: "Invalid input" });
+    }
+  });
+
+  app.get(api.rooms.get.path, async (req, res) => {
+    const room = await storage.getRoomByCode(req.params.code);
+    if (!room) return res.status(404).json({ message: "Room not found" });
+    
+    const players = await storage.getPlayersInRoom(room.id);
+    res.json({ room, players, gameState: room.gameState });
+  });
+
+  // Socket.io Logic
+  io.on("connection", (socket) => {
+    console.log("New client connected:", socket.id);
+
+    socket.on(ws.events.JOIN_ROOM, async ({ code, nickname }) => {
+      const room = await storage.getRoomByCode(code);
+      if (!room) {
+        socket.emit("error", { message: "Room not found" });
+        return;
+      }
+
+      const existingPlayers = await storage.getPlayersInRoom(room.id);
+      const isHost = existingPlayers.length === 0;
+
+      const player = await storage.createPlayer({
+        roomId: room.id,
+        socketId: socket.id,
+        nickname,
+        color: `#${Math.floor(Math.random()*16777215).toString(16)}`,
+        isHost
+      });
+
+      socket.join(code);
+      
+      // Update room host if needed
+      if (isHost) {
+        // We might want to store socket id as host
+      }
+
+      io.to(code).emit(ws.events.PLAYER_JOINED, {
+        player,
+        players: [...existingPlayers, player]
+      });
+    });
+
+    socket.on(ws.events.START_GAME, async ({ code }) => {
+      const room = await storage.getRoomByCode(code);
+      if (!room) return;
+      
+      const players = await storage.getPlayersInRoom(room.id);
+      const player = players.find(p => p.socketId === socket.id);
+      
+      if (!player?.isHost) return;
+
+      // Generate Board
+      const board = await generateCityBoard(room.city);
+      const initialState = {
+        board,
+        currentPlayerIndex: 0,
+        dice: [0, 0],
+        logs: [`Game started in ${room.city}!`],
+        winnerId: undefined
+      };
+
+      await storage.updateRoomStatus(room.id, "playing");
+      await storage.updateRoomState(room.id, initialState);
+
+      io.to(code).emit(ws.events.GAME_STARTED, { gameState: initialState });
+    });
+
+    socket.on(ws.events.ROLL_DICE, async ({ code }) => {
+      const room = await storage.getRoomByCode(code);
+      if (!room || !room.gameState || room.status !== "playing") return;
+      
+      const gameState = room.gameState as any;
+      const players = await storage.getPlayersInRoom(room.id);
+      const currentPlayer = players[gameState.currentPlayerIndex];
+      
+      if (currentPlayer.socketId !== socket.id) return;
+
+      const d1 = Math.floor(Math.random() * 6) + 1;
+      const d2 = Math.floor(Math.random() * 6) + 1;
+      const total = d1 + d2;
+      
+      const newPosition = (currentPlayer.position! + total) % 40;
+      const property = gameState.board[newPosition];
+      
+      const newLogs = [...gameState.logs, `${currentPlayer.nickname} rolled ${total} and landed on ${property.name}`];
+      
+      // Update player position
+      await storage.updatePlayer(currentPlayer.id, { position: newPosition });
+      
+      const newState = {
+        ...gameState,
+        dice: [d1, d2],
+        logs: newLogs
+      };
+      
+      await storage.updateRoomState(room.id, newState);
+      io.to(code).emit(ws.events.GAME_UPDATE, { gameState: newState });
+    });
+
+    socket.on(ws.events.BUY_PROPERTY, async ({ code }) => {
+      const room = await storage.getRoomByCode(code);
+      if (!room || !room.gameState || room.status !== "playing") return;
+      
+      const gameState = room.gameState as any;
+      const players = await storage.getPlayersInRoom(room.id);
+      const currentPlayer = players[gameState.currentPlayerIndex];
+      
+      if (currentPlayer.socketId !== socket.id) return;
+      
+      const property = gameState.board[currentPlayer.position!];
+      if (property.type !== 'street' || property.ownerId || (currentPlayer.money || 0) < (property.price || 0)) return;
+      
+      // Update player money
+      const newMoney = (currentPlayer.money || 0) - property.price;
+      await storage.updatePlayer(currentPlayer.id, { money: newMoney });
+      
+      // Update board
+      const newBoard = [...gameState.board];
+      newBoard[currentPlayer.position!] = { ...property, ownerId: currentPlayer.id };
+      
+      const newLogs = [...gameState.logs, `${currentPlayer.nickname} bought ${property.name} for ${property.price}`];
+      
+      const newState = {
+        ...gameState,
+        board: newBoard,
+        logs: newLogs
+      };
+      
+      await storage.updateRoomState(room.id, newState);
+      io.to(code).emit(ws.events.GAME_UPDATE, { gameState: newState });
+    });
+
+    socket.on(ws.events.END_TURN, async ({ code }) => {
+      const room = await storage.getRoomByCode(code);
+      if (!room || !room.gameState || room.status !== "playing") return;
+      
+      const gameState = room.gameState as any;
+      const players = await storage.getPlayersInRoom(room.id);
+      
+      if (players[gameState.currentPlayerIndex].socketId !== socket.id) return;
+      
+      const nextIndex = (gameState.currentPlayerIndex + 1) % players.length;
+      const nextPlayer = players[nextIndex];
+      
+      const newLogs = [...gameState.logs, `It is now ${nextPlayer.nickname}'s turn`];
+      
+      const newState = {
+        ...gameState,
+        currentPlayerIndex: nextIndex,
+        logs: newLogs
+      };
+      
+      await storage.updateRoomState(room.id, newState);
+      io.to(code).emit(ws.events.GAME_UPDATE, { gameState: newState });
+    });
+    
+    socket.on("disconnect", async () => {
+        // Handle disconnect
+    });
+  });
+
+  return httpServer;
+}

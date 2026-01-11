@@ -1,0 +1,214 @@
+Quero que você crie um site/jogo multiplayer inspirado no Banco Imobiliário da Estrela, mas adaptado para comércios reais da cidade. O tabuleiro deve ter 40 casas. Em vez de ruas famosas, os comércios serão obtidos automaticamente pela API do Google Maps.
+
+🔹 TECNOLOGIAS
+
+Front-end: React ou Next.js
+
+Back-end: Node.js
+
+Multiplayer em tempo real: Socket.io
+
+Banco: MongoDB ou Firebase
+
+API externa: Google Places API (Google Maps Platform)
+
+Estilo visual: dark mode moderno e responsivo
+
+🗺️ USO DA API DO GOOGLE MAPS (OBRIGATÓRIO)
+
+O jogo deve:
+
+Perguntar a cidade do jogador host ao criar sala
+
+Usar Google Places API para buscar estabelecimentos reais dessa cidade
+
+Selecionar 40 comércios automaticamente
+
+Cada comércio vira uma casa do tabuleiro
+
+Critérios de seleção:
+
+priorizar comércios variados
+
+evitar repetição exata de nomes
+
+incluir categorias diferentes
+
+ordenar aleatoriamente
+
+Tipos de estabelecimentos:
+
+restaurantes
+
+pizzarias
+
+padarias
+
+farmácias
+
+mercados
+
+papelarias
+
+oficinas
+
+academias
+
+lojas de roupa
+
+lojas de celular
+
+pet shops
+
+clínicas odontológicas
+
+sorveterias
+
+lojas de informática
+
+bares
+
+lanchonetes
+
+salões de beleza
+
+autoescolas
+
+depósitos de construção
+
+estacionamentos
+
+Os dados obtidos devem incluir:
+
+nome do comércio
+
+endereço resumido
+
+nota (rating, se disponível)
+
+Essas informações aparecem:
+
+na casa do tabuleiro
+
+ao clicar no comércio
+
+no painel lateral do jogador
+
+🎮 ESTRUTURA DO TABULEIRO
+
+Total de 40 casas, incluindo obrigatoriamente:
+
+Início
+
+Vá para prisão
+
+Prisão / Apenas Visitando
+
+Feriado
+
+Sorte / Azar (cartas)
+
+Taxas e impostos
+
+32 comércios gerados pela API
+
+4 serviços especiais (água, luz, internet, impostos)
+
+🧑‍🤝‍🧑 MULTIPLAYER
+
+criar sala com código
+
+entrar por código
+
+nickname obrigatório
+
+opção “Guardar nickname” igual ao print enviado
+
+host escolhe a cidade
+
+todos veem o mesmo tabuleiro
+
+movimentos sincronizados em tempo real
+
+🏠 TELA INICIAL OBRIGATÓRIA
+
+Deve seguir o layout do print enviado:
+
+Elementos:
+
+campo “Seu nickname”
+
+botão CRIAR SALA (laranja)
+
+botão ENTRAR (verde)
+
+campo “CÓDIGO”
+
+checkbox “Guardar nickname”
+
+tema escuro
+
+⚙️ REGRAS DO JOGO
+
+saldo inicial: 2000
+
+dado virtual de 1 a 6
+
+passar pelo INÍCIO → recebe 200
+
+comprar comércios reais
+
+receber aluguel
+
+pagar aluguel a outros
+
+aumentar aluguel com melhorias
+
+ficar preso por 3 rodadas ou pagar fiança
+
+feriado = perde uma rodada
+
+sorte/azar = eventos financeiros aleatórios
+
+falência elimina jogador
+
+vence o último ativo ou maior patrimônio por tempo limite
+
+🧩 CARTAS DE SORTE E AZAR (EXEMPLOS)
+
+“Fiscalização sanitária — pague 200”
+
+“Promoção viral — receba 300”
+
+“Reforma no comércio — pague 150”
+
+“Cliente VIP — receba 250”
+
+“Processo trabalhista — pague 500”
+
+“Sai da prisão grátis”
+
+🗃️ MODELOS DE DADOS
+Jogador
+
+id
+
+nickname
+
+saldo
+
+posição
+
+propriedades
+
+Comércio
+
+nome obtido da API
+
+endereço
+
+preço
+
+aluguel base
+
+dono
