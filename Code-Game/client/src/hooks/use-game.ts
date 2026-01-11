@@ -3,6 +3,7 @@ import { api, ws } from "@shared/routes";
 import { io, Socket } from "socket.io-client";
 import { useEffect, useRef, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { ClientIdManager } from "@/lib/client-id";
 
 // Types
 import type { GameState, Player, Room } from "@shared/schema";
@@ -58,12 +59,26 @@ export function useRoom(code: string) {
 
 export function useGameSocket(roomCode: string, currentPlayerId?: number) {
   const socketRef = useRef<Socket | null>(null);
+  const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    if (!roomCode || !currentPlayerId) return;
+    if (!roomCode || !currentPlayerId || currentPlayerId === 0) {
+      if (!currentPlayerId || currentPlayerId === 0) {
+        console.error("[useGameSocket] Invalid playerId:", currentPlayerId);
+      }
+      return;
+    }
+
+    const clientId = ClientIdManager.getClientId();
+    if (!clientId) {
+      console.error("[useGameSocket] No client ID found");
+      return;
+    }
+
+    console.log(`[useGameSocket] Initializing socket for room ${roomCode}, playerId: ${currentPlayerId}`);
 
     // Connect to WS
     const socket = io(window.location.origin);
@@ -72,23 +87,42 @@ export function useGameSocket(roomCode: string, currentPlayerId?: number) {
     socket.on("connect", () => {
       setIsConnected(true);
       const savedNickname = localStorage.getItem("nickname");
-      console.log("Connected to WS, joining room:", roomCode, "as:", savedNickname);
-      // Ensure we are using the correct event name from ws.events.JOIN_ROOM
-      socket.emit("join_room", { code: roomCode, nickname: savedNickname });
+      console.log(`[WS] Connected, joining room: ${roomCode} as ${savedNickname}`);
+      socket.emit(ws.events.JOIN_ROOM, { 
+        code: roomCode, 
+        playerId: currentPlayerId,
+        clientId,
+        nickname: savedNickname 
+      });
+
+      // Start heartbeat
+      heartbeatRef.current = setInterval(() => {
+        socket.emit(ws.events.HEARTBEAT, { playerId: currentPlayerId });
+      }, 10000);
     });
 
-    socket.on("error", (err: any) => {
+    socket.on(ws.events.ERROR, (err: any) => {
+      console.error("[WS] Error:", err);
       toast({ title: "Connection Error", description: err.message, variant: "destructive" });
     });
 
     socket.on("disconnect", () => {
       setIsConnected(false);
+      if (heartbeatRef.current) {
+        clearInterval(heartbeatRef.current);
+        heartbeatRef.current = null;
+      }
+      toast({ 
+        title: "Disconnected", 
+        description: "Attempting to reconnect...",
+        variant: "default"
+      });
     });
 
     // --- Game Events ---
 
     socket.on(ws.events.PLAYER_JOINED, (data: { player: Player; players: Player[] }) => {
-      console.log("Player joined event received:", data);
+      console.log("[WS] Player joined:", data.player.nickname);
       toast({
         title: "Player Joined",
         description: `${data.player.nickname} has entered the lobby.`,
@@ -97,6 +131,34 @@ export function useGameSocket(roomCode: string, currentPlayerId?: number) {
         if (!old) return old;
         return { ...old, players: data.players };
       });
+    });
+
+    socket.on(ws.events.PLAYER_DISCONNECTED, (data: { playerId: number; nickname: string }) => {
+      console.log("[WS] Player disconnected:", data.nickname);
+      toast({
+        title: "Player Left",
+        description: `${data.nickname} has disconnected.`,
+        variant: "default"
+      });
+      queryClient.invalidateQueries({ queryKey: [api.rooms.get.path, roomCode] });
+    });
+
+    socket.on(ws.events.PLAYER_RECONNECTED, (data: { playerId: number; nickname: string }) => {
+      console.log("[WS] Player reconnected:", data.nickname);
+      toast({
+        title: "Player Reconnected",
+        description: `${data.nickname} is back!`,
+      });
+      queryClient.invalidateQueries({ queryKey: [api.rooms.get.path, roomCode] });
+    });
+
+    socket.on(ws.events.HOST_CHANGED, (data: { newHostId: number; nickname: string }) => {
+      console.log("[WS] Host changed to:", data.nickname);
+      toast({
+        title: "New Host",
+        description: `${data.nickname} is now the host.`,
+      });
+      queryClient.invalidateQueries({ queryKey: [api.rooms.get.path, roomCode] });
     });
 
     socket.on(ws.events.GAME_STARTED, (data: { gameState: GameState }) => {
@@ -137,6 +199,9 @@ export function useGameSocket(roomCode: string, currentPlayerId?: number) {
     });
 
     return () => {
+      if (heartbeatRef.current) {
+        clearInterval(heartbeatRef.current);
+      }
       socket.disconnect();
     };
   }, [roomCode, currentPlayerId, queryClient, toast]);

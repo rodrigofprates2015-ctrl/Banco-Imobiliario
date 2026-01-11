@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useCreateRoom, useJoinRoom } from "@/hooks/use-game";
 import { Button } from "@/components/ui/button";
@@ -6,14 +6,21 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Dice5, Building2, MapPin, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { ClientIdManager } from "@/lib/client-id";
 
 export default function Home() {
   const [nickname, setNickname] = useState(localStorage.getItem("nickname") || "");
   const [roomCode, setRoomCode] = useState("");
   const [city, setCity] = useState("Poá, SP");
   const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [clientId, setClientId] = useState<string>("");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+
+  useEffect(() => {
+    const id = ClientIdManager.getOrCreateClientId();
+    setClientId(id);
+  }, []);
 
   const fetchSuggestions = async (val: string) => {
     setCity(val);
@@ -42,14 +49,16 @@ export default function Home() {
       toast({ title: "Nickname required", variant: "destructive" });
       return;
     }
+    if (!clientId) {
+      toast({ title: "Client ID not initialized", variant: "destructive" });
+      return;
+    }
     saveNickname();
     try {
-      const data = await createRoom.mutateAsync({ city, nickname });
-      // Store token/playerId in session/local storage if needed, but for now we rely on response
-      // For simplicity in this demo, passing ID via URL state might be tricky with wouter, 
-      // so let's store session data in localStorage.
+      const data = await createRoom.mutateAsync({ city, nickname, clientId });
       sessionStorage.setItem(`room_${data.roomCode}_token`, data.token);
       sessionStorage.setItem(`room_${data.roomCode}_playerId`, String(data.playerId));
+      console.log(`[Home] Room created: ${data.roomCode}, playerId: ${data.playerId}`);
       setLocation(`/lobby/${data.roomCode}`);
     } catch (e: any) {
       toast({ title: "Error creating room", description: e.message, variant: "destructive" });
@@ -61,11 +70,16 @@ export default function Home() {
       toast({ title: "Nickname and Code required", variant: "destructive" });
       return;
     }
+    if (!clientId) {
+      toast({ title: "Client ID not initialized", variant: "destructive" });
+      return;
+    }
     saveNickname();
     try {
-      const data = await joinRoom.mutateAsync({ code: roomCode, nickname });
+      const data = await joinRoom.mutateAsync({ code: roomCode, nickname, clientId });
       sessionStorage.setItem(`room_${data.roomCode}_token`, data.token);
       sessionStorage.setItem(`room_${data.roomCode}_playerId`, String(data.playerId));
+      console.log(`[Home] Joined room: ${data.roomCode}, playerId: ${data.playerId}`);
       setLocation(`/lobby/${data.roomCode}`);
     } catch (e: any) {
       toast({ title: "Error joining room", description: e.message, variant: "destructive" });

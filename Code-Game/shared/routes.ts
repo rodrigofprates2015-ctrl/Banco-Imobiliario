@@ -9,6 +9,7 @@ export const api = {
       input: z.object({
         city: z.string(),
         nickname: z.string(),
+        clientId: z.string(),
       }),
       responses: {
         201: z.object({ roomCode: z.string(), playerId: z.number(), token: z.string() }),
@@ -20,6 +21,7 @@ export const api = {
       input: z.object({
         code: z.string(),
         nickname: z.string(),
+        clientId: z.string(),
       }),
       responses: {
         200: z.object({ roomCode: z.string(), playerId: z.number(), token: z.string() }),
@@ -45,6 +47,9 @@ export const ws = {
   events: {
     JOIN_ROOM: 'join_room', // client -> server
     PLAYER_JOINED: 'player_joined', // server -> client
+    PLAYER_DISCONNECTED: 'player_disconnected', // server -> client
+    PLAYER_RECONNECTED: 'player_reconnected', // server -> client
+    HOST_CHANGED: 'host_changed', // server -> client
     START_GAME: 'start_game', // client -> server
     GAME_STARTED: 'game_started', // server -> client
     ROLL_DICE: 'roll_dice', // client -> server
@@ -54,5 +59,8 @@ export const ws = {
     END_TURN: 'end_turn', // client -> server
     TURN_ENDED: 'turn_ended', // server -> client
     GAME_UPDATE: 'game_update', // server -> client (full state sync)
+    GAME_ENDED: 'game_ended', // server -> client
+    HEARTBEAT: 'heartbeat', // client -> server
+    ERROR: 'error', // server -> client
   }
 };
