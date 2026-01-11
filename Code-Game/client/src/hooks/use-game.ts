@@ -73,7 +73,12 @@ export function useGameSocket(roomCode: string, currentPlayerId?: number) {
       setIsConnected(true);
       const savedNickname = localStorage.getItem("nickname");
       console.log("Connected to WS, joining room:", roomCode, "as:", savedNickname);
-      socket.emit(ws.events.JOIN_ROOM, { code: roomCode, nickname: savedNickname });
+      // Ensure we are using the correct event name from ws.events.JOIN_ROOM
+      socket.emit("join_room", { code: roomCode, nickname: savedNickname });
+    });
+
+    socket.on("error", (err: any) => {
+      toast({ title: "Connection Error", description: err.message, variant: "destructive" });
     });
 
     socket.on("disconnect", () => {
@@ -83,6 +88,7 @@ export function useGameSocket(roomCode: string, currentPlayerId?: number) {
     // --- Game Events ---
 
     socket.on(ws.events.PLAYER_JOINED, (data: { player: Player; players: Player[] }) => {
+      console.log("Player joined event received:", data);
       toast({
         title: "Player Joined",
         description: `${data.player.nickname} has entered the lobby.`,

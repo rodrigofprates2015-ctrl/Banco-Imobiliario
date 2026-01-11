@@ -83,47 +83,42 @@ export async function registerRoutes(
   io.on("connection", (socket) => {
     console.log("New client connected:", socket.id);
 
-    socket.on(ws.events.JOIN_ROOM, async (data: any) => {
+    socket.on("join_room", async (data: any) => {
       const { code, nickname } = data;
-      console.log(`[WS] Player ${nickname} joining room ${code}`);
+      console.log(`[WS] Player ${nickname} joining room ${code} (Socket: ${socket.id})`);
       const room = await storage.getRoomByCode(code);
       if (!room) {
+        console.log(`[WS] Room ${code} not found`);
         socket.emit("error", { message: "Room not found" });
         return;
       }
 
-      // Check if player already exists for this socket
-      const existingPlayer = await storage.getPlayerBySocket(socket.id);
-      if (existingPlayer) {
-        console.log(`[WS] Player ${nickname} already exists for socket ${socket.id}`);
-        const allPlayers = await storage.getPlayersInRoom(room.id);
-        socket.join(code);
-        io.to(code).emit(ws.events.PLAYER_JOINED, {
-          player: existingPlayer,
-          players: allPlayers
+      // Check if player already exists for this socket AND room
+      const existingPlayers = await storage.getPlayersInRoom(room.id);
+      const playerWithSocket = existingPlayers.find(p => p.socketId === socket.id);
+      
+      let player;
+      if (playerWithSocket) {
+        player = playerWithSocket;
+        console.log(`[WS] Player ${player.nickname} already in room ${code}`);
+      } else {
+        player = await storage.createPlayer({
+          roomId: room.id,
+          socketId: socket.id,
+          nickname: nickname || "Anonymous",
+          color: `#${Math.floor(Math.random()*16777215).toString(16)}`,
+          isHost: existingPlayers.length === 0
         });
-        return;
+        console.log(`[WS] Created player ${player.nickname} in room ${code}`);
       }
 
-      const existingPlayersInRoom = await storage.getPlayersInRoom(room.id);
-      const isHost = existingPlayersInRoom.length === 0;
-
-      const player = await storage.createPlayer({
-        roomId: room.id,
-        socketId: socket.id,
-        nickname: nickname || "Anonymous",
-        color: `#${Math.floor(Math.random()*16777215).toString(16)}`,
-        isHost
-      });
-
       socket.join(code);
+      const allPlayers = await storage.getPlayersInRoom(room.id);
       
-      console.log(`[WS] Player ${player.nickname} joined room ${code} (isHost: ${isHost})`);
-      const allPlayersAfterJoin = await storage.getPlayersInRoom(room.id);
-
-      io.to(code).emit(ws.events.PLAYER_JOINED, {
+      // Emit to everyone in the room, including the sender
+      io.to(code).emit("player_joined", {
         player,
-        players: allPlayersAfterJoin
+        players: allPlayers
       });
     });
 
