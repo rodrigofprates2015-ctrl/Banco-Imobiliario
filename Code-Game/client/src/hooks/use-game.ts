@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@shared/routes";
+import { api, ws } from "@shared/routes";
 import { io, Socket } from "socket.io-client";
 import { useEffect, useRef, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -81,21 +81,27 @@ export function useGameSocket(roomCode: string, currentPlayerId?: number) {
 
     // --- Game Events ---
 
-    socket.on("player_joined", (data: { nickname: string }) => {
+    socket.on(ws.events.PLAYER_JOINED, (data: { player: Player; players: Player[] }) => {
       toast({
         title: "Player Joined",
-        description: `${data.nickname} has entered the lobby.`,
+        description: `${data.player.nickname} has entered the lobby.`,
       });
-      queryClient.invalidateQueries({ queryKey: [api.rooms.get.path, roomCode] });
+      queryClient.setQueryData([api.rooms.get.path, roomCode], (old: any) => {
+        if (!old) return old;
+        return { ...old, players: data.players };
+      });
     });
 
-    socket.on("game_started", () => {
+    socket.on(ws.events.GAME_STARTED, (data: { gameState: GameState }) => {
       toast({
         title: "Game Started!",
         description: "Good luck, tycoons!",
         className: "bg-primary text-primary-foreground border-none",
       });
-      queryClient.invalidateQueries({ queryKey: [api.rooms.get.path, roomCode] });
+      queryClient.setQueryData([api.rooms.get.path, roomCode], (old: any) => {
+        if (!old) return old;
+        return { ...old, gameState: data.gameState, room: { ...old.room, status: "playing" } };
+      });
     });
 
     socket.on("dice_rolled", (data: { playerId: number; dice: [number, number]; newPosition: number }) => {

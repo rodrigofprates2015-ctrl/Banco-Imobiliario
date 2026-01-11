@@ -67,7 +67,9 @@ export async function registerRoutes(
   io.on("connection", (socket) => {
     console.log("New client connected:", socket.id);
 
-    socket.on(ws.events.JOIN_ROOM, async ({ code, nickname }) => {
+    socket.on(ws.events.JOIN_ROOM, async (data: any) => {
+      const { code, nickname } = data;
+      console.log(`Player ${nickname} joining room ${code}`);
       const room = await storage.getRoomByCode(code);
       if (!room) {
         socket.emit("error", { message: "Room not found" });
@@ -80,17 +82,14 @@ export async function registerRoutes(
       const player = await storage.createPlayer({
         roomId: room.id,
         socketId: socket.id,
-        nickname,
+        nickname: nickname || "Anonymous",
         color: `#${Math.floor(Math.random()*16777215).toString(16)}`,
         isHost
       });
 
       socket.join(code);
       
-      // Update room host if needed
-      if (isHost) {
-        // We might want to store socket id as host
-      }
+      console.log(`Player ${player.nickname} joined room ${code} (isHost: ${isHost})`);
 
       io.to(code).emit(ws.events.PLAYER_JOINED, {
         player,
