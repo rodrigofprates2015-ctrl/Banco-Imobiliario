@@ -10,9 +10,25 @@ import { useToast } from "@/hooks/use-toast";
 export default function Home() {
   const [nickname, setNickname] = useState(localStorage.getItem("nickname") || "");
   const [roomCode, setRoomCode] = useState("");
-  const [city, setCity] = useState("New York, NY");
+  const [city, setCity] = useState("Poá, SP");
+  const [suggestions, setSuggestions] = useState<any[]>([]);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+
+  const fetchSuggestions = async (val: string) => {
+    setCity(val);
+    if (val.length < 3) {
+      setSuggestions([]);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/city-suggestions?input=${encodeURIComponent(val)}`);
+      const data = await res.json();
+      setSuggestions(data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const createRoom = useCreateRoom();
   const joinRoom = useJoinRoom();
@@ -100,9 +116,25 @@ export default function Home() {
                 <Input 
                   placeholder="Target City (e.g. London)" 
                   value={city}
-                  onChange={(e) => setCity(e.target.value)}
+                  onChange={(e) => fetchSuggestions(e.target.value)}
                   className="pl-12 text-sm"
                 />
+                {suggestions.length > 0 && (
+                  <div className="absolute top-full left-0 w-full bg-slate-800 border border-white/10 rounded-xl mt-1 z-50 shadow-2xl max-h-48 overflow-y-auto">
+                    {suggestions.map((s) => (
+                      <button
+                        key={s.place_id}
+                        className="w-full text-left px-4 py-3 text-sm hover:bg-white/5 border-b border-white/5 last:border-0"
+                        onClick={() => {
+                          setCity(s.description);
+                          setSuggestions([]);
+                        }}
+                      >
+                        {s.description}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <Button 
                 onClick={handleCreate} 
